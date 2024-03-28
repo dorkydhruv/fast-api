@@ -5,7 +5,13 @@ from fastapi import Body, FastAPI, Response,status,HTTPException
 from pydantic import BaseModel
 from random import randint
 import time
+import models
+from database import engine ,get_db
+
 app=FastAPI()
+models.Base.metadata.create_all(bind=engine)
+
+
 
 class Post(BaseModel):
     title :str
