@@ -2,11 +2,13 @@
 from psycopg.rows import dict_row
 from fastapi import Body, FastAPI, Response,status,HTTPException,Depends
 from random import randint
-import time
+from .utils import hashed
 from . import models
 from sqlalchemy.orm import Session
 from .database import engine ,get_db
 from . import schemas
+
+
 app=FastAPI()
 models.Base.metadata.create_all(bind=engine)
 
@@ -67,3 +69,18 @@ def update_post(id:int,post:schemas.PostCreate,db:Session=Depends(get_db)):
         db.commit()
         return post_query.first()
     raise HTTPException(status_code=404,detail=f"post with id {id} not found")
+
+
+#USER OPERATIONS
+@app.post("/users",status_code=status.HTTP_201_CREATED,response_model=schemas.UserOut)
+def create_user(user:schemas.UserCreate,db:Session=Depends(get_db)):
+
+    #hash the password
+    user.password = hashed(user.password)
+
+    #store the password
+    new_user = models.User(**user.dict())
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
