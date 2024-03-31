@@ -19,13 +19,12 @@ def read_posts(db: Session=Depends(get_db)):
     return posts
 
 @router.post("/",status_code=status.HTTP_201_CREATED,response_model=schemas.Post)
-def create_post(post: schemas.PostCreate,db: Session=Depends(get_db),user_id :int=Depends(oauth.get_current_user)):
+def create_post(post: schemas.PostCreate,db: Session=Depends(get_db),current_user :int=Depends(oauth.get_current_user)):
     # cursor.execute(""" INSERT INTO posts (title,content,published) VALUES (%s,%s,%s) RETURNING *""",
     #                (post.title,post.content,post.published))
     # new_post = cursor.fetchone()
     # conn.commit()
-    print(user_id)
-    new_post =models.Post(**post.dict())
+    new_post =models.Post(owner_id=current_user.id,**post.dict())
     db.add(new_post)
     db.commit()
     db.refresh(new_post)
@@ -41,24 +40,28 @@ def get_post(id :int, response: Response,db: Session=Depends(get_db)):
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail=f"post with id {id} not found")
 
 @router.delete("/{id}",status_code=status.HTTP_204_NO_CONTENT)
-def delete_post(id:int,db:Session=Depends(get_db),user_id :int=Depends(oauth.get_current_user)):
+def delete_post(id:int,db:Session=Depends(get_db),current_user :int=Depends(oauth.get_current_user)):
     # cursor.execute("""DELETE from posts WHERE id = %s RETURNING *""",(str(id),))
     # post = cursor.fetchone()
     post =db.query(models.Post).filter(models.Post.id == id)
-    if post.first():
-        post.delete(synchronize_session=False)
-        db.commit()
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
-    raise HTTPException(status_code=404,detail=f"post with id {id} not found")
+    if not post.first():
+        raise HTTPException(status_code=404,detail=f"post with id {id} not found")
+    if post.first().owner_id != current_user.id:
+        raise HTTPException(status_code=403,detail="You are not allowed to delete this post")
+    post.delete(synchronize_session=False)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 @router.put("/{id}",response_model=schemas.Post)
-def update_post(id:int,post:schemas.PostCreate,db:Session=Depends(get_db),user_id :int=Depends(oauth.get_current_user)):
+def update_post(id:int,post:schemas.PostCreate,db:Session=Depends(get_db),current_user :int=Depends(oauth.get_current_user)):
     # cursor.execute("""UPDATE posts SET title = %s, content=%s, published=%s WHERE id = %s RETURNING *""",(post.title,post.content,post.published,str(id),))
     # post= cursor.fetchone()
     post_query=db.query(models.Post).filter(models.Post.id == id)
-    if post_query.first():
-        # conn.commit()
-        post_query.update(post.dict())
-        db.commit()
-        return post_query.first()
-    raise HTTPException(status_code=404,detail=f"post with id {id} not found")
+    if not post_query.first():
+        raise HTTPException(status_code=404,detail=f"post with id {id} not found")
+    if post_query.first().owner_id != current_user.id:
+        raise HTTPException(status_code=403,detail="You are not allowed to update this post")
+    # conn.commit()
+    post_query.update(post.dict())
+    db.commit()
+    return post_query.first()
