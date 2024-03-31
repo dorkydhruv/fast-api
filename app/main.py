@@ -1,6 +1,7 @@
 # import psycopg
 from psycopg.rows import dict_row
-from fastapi import Body, FastAPI, Response,status,HTTPException,Depends
+from fastapi import Body, FastAPI
+from pydantic_settings import BaseSettings
 from . import models
 from .database import engine
 from .routers import post,user,auth
