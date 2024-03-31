@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import Response,status,HTTPException,Depends,APIRouter
 from sqlalchemy.orm import Session
 from ..database import get_db
@@ -10,12 +11,12 @@ router= APIRouter(
 
 
 @router.get("/",response_model=list[schemas.Post])
-def read_posts(db: Session=Depends(get_db)):
+def read_posts(db: Session=Depends(get_db),limit:int=10,skip:int=0,search:Optional[str]=""):
     # cursor.execute("""
     # SELECT * FROM posts
     # """)
     # posts = cursor.fetchall()
-    posts = db.query(models.Post).all()
+    posts = db.query(models.Post).filter(models.Post.title.contains(search)).limit(limit).offset(skip).all()
     return posts
 
 @router.post("/",status_code=status.HTTP_201_CREATED,response_model=schemas.Post)
