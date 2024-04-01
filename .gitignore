@@ -2,3 +2,5 @@
 /app/__pycache__
 /app/routers/__pycache__
 .env
+*.pyc
+*.ini
