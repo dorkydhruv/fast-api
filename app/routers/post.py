@@ -1,6 +1,7 @@
-from typing import Optional
+from typing import Optional,List
 from fastapi import Response,status,HTTPException,Depends,APIRouter
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from ..database import get_db
 from .. import models,schemas
 from .. import oauth
@@ -10,14 +11,23 @@ router= APIRouter(
 )
 
 
-@router.get("/",response_model=list[schemas.Post])
+@router.get("/",response_model=list[schemas.PostOut])
 def read_posts(db: Session=Depends(get_db),limit:int=10,skip:int=0,search:Optional[str]=""):
     # cursor.execute("""
     # SELECT * FROM posts
     # """)
     # posts = cursor.fetchall()
-    posts = db.query(models.Post).filter(models.Post.title.contains(search)).limit(limit).offset(skip).all()
-    return posts
+    # posts = db.query(models.Post).filter(models.Post.title.contains(search)).limit(limit).offset(skip).all()
+    posts = db.query(models.Post,func.count(models.Vote.post_id).label("votes")).join(models.Vote,models.Vote.post_id==models.Post.id,isouter=True).group_by(models.Post.id).filter(models.Post.title.contains(search)).limit(limit).offset(skip).all()
+    # posts = list ( map (lambda x : x._mapping, posts) )
+    post_data=[]
+    for row in posts:
+        post={
+            "Post":row[0],
+            "votes":row[1]
+        }
+        post_data.append(post)
+    return post_data
 
 @router.post("/",status_code=status.HTTP_201_CREATED,response_model=schemas.Post)
 def create_post(post: schemas.PostCreate,db: Session=Depends(get_db),current_user :int=Depends(oauth.get_current_user)):
@@ -31,13 +41,16 @@ def create_post(post: schemas.PostCreate,db: Session=Depends(get_db),current_use
     db.refresh(new_post)
     return new_post
 
-@router.get("/{id}",response_model=schemas.Post)
-def get_post(id :int, response: Response,db: Session=Depends(get_db)):
+@router.get("/{id}",response_model=schemas.PostOut)
+def get_post(id :int,db: Session=Depends(get_db)):
     # cursor.execute("""SELECT * FROM posts WHERE id = %s""",(str(id),))
     # this_post = cursor.fetchone()
-    this_post = db.query(models.Post).filter(models.Post.id == id).first()
+    this_post = db.query(models.Post,func.count(models.Vote.post_id).label("votes")).join(models.Vote,models.Vote.post_id==models.Post.id,isouter=True).group_by(models.Post.id).filter(models.Post.id==id).first()
     if this_post:
-        return this_post
+        return{
+            "Post":this_post[0],
+            "votes":this_post[1]
+        }
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail=f"post with id {id} not found")
 
 @router.delete("/{id}",status_code=status.HTTP_204_NO_CONTENT)
